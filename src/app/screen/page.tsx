@@ -1,6 +1,9 @@
 "use client";
-import { HandLandmarker, FilesetResolver } from "@mediapipe/tasks-vision";
-import { drawConnectors } from "@mediapipe/drawing_utils";
+import {
+  HandLandmarker,
+  FilesetResolver,
+  DrawingUtils,
+} from "@mediapipe/tasks-vision";
 import { useRef, useEffect } from "react";
 // const vision = await FilesetResolver.forVisionTasks(
 //   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
@@ -46,7 +49,7 @@ export default function Page() {
         "/models/hand_landmarker.task"
       );
 
-      await handLandmarker.setOptions({ runningMode: "VIDEO" });
+      await handLandmarker.setOptions({ runningMode: "VIDEO", numHands: 2 });
 
       // load webcam
       if (videoRef.current) {
@@ -80,48 +83,32 @@ export default function Page() {
       if (!detections?.landmarks) return;
 
       // draw landmarks
+      const drawingUtils = new DrawingUtils(ctx);
 
-      const HAND_CONNECTIONS: [number, number][] = [
-        [0, 1],
-        [1, 2],
-        [2, 3],
-        [3, 4], // Thumb
-        [0, 5],
-        [5, 6],
-        [6, 7],
-        [7, 8], // Index
-        [0, 9],
-        [9, 10],
-        [10, 11],
-        [11, 12], // Middle
-        [0, 13],
-        [13, 14],
-        [14, 15],
-        [15, 16], // Ring
-        [0, 17],
-        [17, 18],
-        [18, 19],
-        [19, 20], // Pinky
-      ];
       detections.landmarks.forEach((hand: any, handIndex: number) => {
-        // hand.forEach((point: any) => {
-        //   ctx.beginPath();
-        //   ctx.arc(
-        //     point.x * canvas.width,
-        //     point.y * canvas.height,
-        //     5,
-        //     0,
-        //     2 * Math.PI
-        //   );
-        //    ctx.fillStyle = handIndex === 0 ? "green" : "blue";
-        //    ctx.fill();
+        // draw full hand skeleton
+        drawingUtils.drawConnectors(hand, HandLandmarker.HAND_CONNECTIONS, {
+          color: handIndex === 0 ? "red" : "blue",
+          lineWidth: 3,
+        });
+
+        // draw all landmarks as small points
+        // drawingUtils.drawLandmarks(hand, {
+        //   color: handIndex === 0 ? "green" : "cyan",
+        //   radius: 3,
         // });
 
-        drawConnectors(ctx, hand, HAND_CONNECTIONS, {
-          color: handIndex === 0 ? "#00FF00" : "#0000FF",
-          lineWidth: 5,
-        });
+        // extra: highlight fingertips (landmarks 4, 8, 12, 16, 20)
+        // const fingertipIndices = [4, 8, 12, 16, 20];
+        // fingertipIndices.forEach((idx) => {
+        //   const pt = hand[idx];
+        //   ctx.beginPath();
+        //   ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 6, 0, 2 * Math.PI);
+        //   ctx.fillStyle = "yellow";
+        //   ctx.fill();
+        // });
       });
+      console.log(detections);
     }
 
     function renderLoop() {
@@ -142,7 +129,6 @@ export default function Page() {
       }
       requestAnimationFrame(renderLoop);
     }
-
     init();
   }, []);
 
@@ -150,14 +136,14 @@ export default function Page() {
     <div className="relative w-[640px] h-[480px] mx-auto mt-8">
       <video
         ref={videoRef}
-        className="absolute top-0 left-0 w-full h-full object-cover rounded-lg shadow-lg"
+        className="absolute top-0 left-0 w-full h-full object-cover rounded-lg shadow-lg transform -scale-x-100"
         autoPlay
         playsInline
         muted
       />
       <canvas
         ref={canvasRef}
-        className="absolute top-0 left-0 w-full h-full pointer-events-none"
+        className="absolute top-0 left-0 w-full h-full pointer-events-none transform -scale-x-100"
       />
     </div>
   );
