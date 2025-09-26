@@ -5,31 +5,8 @@ import {
   DrawingUtils,
 } from "@mediapipe/tasks-vision";
 import { useRef, useEffect } from "react";
-// const vision = await FilesetResolver.forVisionTasks(
-//   "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm"
-// );
+import * as Tone from "tone";
 
-// const handLandmarker = await HandLandmarker.createFromModelPath(
-//   vision,
-//   "../shared/hand_landmarker.task"
-// );
-
-// await handLandmarker.setOptions({ runningMode: "VIDEO" });
-
-// let lastVideoTime = -1;
-// function renderLoop(): void {
-//   const video = document.getElementById("video");
-
-//   if (video.currentTime !== lastVideoTime) {
-//     const detections = handLandmarker.detectForVideo(video);
-//     processResults(detections);
-//     lastVideoTime = video.currentTime;
-//   }
-
-//   requestAnimationFrame(() => {
-//     renderLoop();
-//   });
-// }
 export default function Page() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -38,6 +15,38 @@ export default function Page() {
     let handLandmarker: HandLandmarker;
     let lastVideoTime = -1;
 
+    // piano
+    const fingertipIndices = [4, 8, 12, 16, 20];
+    const leftHandNotes = ["G4", "E4", "D4", "C4", "A3"];
+    const rightHandNotes = ["G5", "E5", "D5", "C5", "A4"];
+
+    const synth = new Tone.Sampler({
+      urls: {
+        A3: "A3.mp3",
+        C4: "C4.mp3",
+        D4: "D4.mp3",
+        E4: "E4.mp3",
+        G4: "G4.mp3",
+        A4: "A4.mp3",
+        C5: "C5.mp3",
+        D5: "D5.mp3",
+        E5: "E5.mp3",
+        G5: "G5.mp3",
+      },
+      baseUrl: "/samples/piano/",
+    }).toDestination();
+
+    let activeKeys = new Set<string>();
+    function playNoteOnce(note: string, fingerId: number) {
+      const keyId = `${fingerId}-${note}`;
+      if (!activeKeys.has(keyId)) {
+        activeKeys.add(keyId);
+        synth.triggerAttackRelease(note, "8n");
+        setTimeout(() => activeKeys.delete(keyId), 300);
+      }
+    }
+
+    // vid / canvas
     async function init() {
       // load vision
       const vision = await FilesetResolver.forVisionTasks(
@@ -92,21 +101,32 @@ export default function Page() {
           lineWidth: 3,
         });
 
-        // draw all landmarks as small points
-        // drawingUtils.drawLandmarks(hand, {
-        //   color: handIndex === 0 ? "green" : "cyan",
-        //   radius: 3,
-        // });
+        const thumb = hand[4];
+        const fingertipIndices = [8, 12, 16, 20];
+        fingertipIndices.forEach((idx, fingerOrder) => {
+          const tip = hand[idx];
 
-        // extra: highlight fingertips (landmarks 4, 8, 12, 16, 20)
-        // const fingertipIndices = [4, 8, 12, 16, 20];
-        // fingertipIndices.forEach((idx) => {
-        //   const pt = hand[idx];
-        //   ctx.beginPath();
-        //   ctx.arc(pt.x * canvas.width, pt.y * canvas.height, 6, 0, 2 * Math.PI);
-        //   ctx.fillStyle = "yellow";
-        //   ctx.fill();
-        // });
+          // Euclidean distance (normalized coords)
+          const dx = tip.x - thumb.x;
+          const dy = tip.y - thumb.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+
+          if (dist < 0.05) {
+            // assign note
+            const note =
+              handIndex === 0
+                ? leftHandNotes[fingerOrder + 1] // skip thumb in leftHandNotes
+                : rightHandNotes[fingerOrder + 1];
+            playNoteOnce(note, idx + handIndex * 10);
+          }
+
+          // (Optional) draw a line between thumb and fingertip for debugging
+          ctx.beginPath();
+          ctx.moveTo(thumb.x * canvas.width, thumb.y * canvas.height);
+          ctx.lineTo(tip.x * canvas.width, tip.y * canvas.height);
+          ctx.strokeStyle = dist < 0.05 ? "lime" : "gray";
+          ctx.stroke();
+        });
       });
       console.log(detections);
     }
